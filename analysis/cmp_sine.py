@@ -11,6 +11,8 @@ from net import *
 from os import walk
 import re
 
+# Evaluates different regression nets and shows comparison graph
+
 numbers = re.compile(r'(\d+)')
 def numericalSort(value):
     parts = numbers.split(value)

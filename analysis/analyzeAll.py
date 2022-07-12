@@ -84,3 +84,4 @@ anapaths = ['ana_saved/norm/ana_nets' + pathnum for pathnum in pathnums]
 # anapaths = ['ana_saved/small/' + net_mode for net_mode in net_modes]
 
 netpaths = [analyze_paths(netpaths[i], pathnums[i], anapaths[i]) for i in range(len(netpaths))]
+# automatically analyze all nets in given directories

@@ -8,10 +8,10 @@ from matplotlib import animation
 from net import *
 from tqdm import tqdm
 
-def noise_example(sample_x, eps=1/255.):
+def noise_example(sample_x, eps=1/255.): # adds random noise to a sample
         return torch.normal(sample_x, eps*torch.ones_like(sample_x))
 
-def adversarial_example(sample_x, sample_y, net, eps=1/255.):
+def adversarial_example(sample_x, sample_y, net, eps=1/255.): # transforms example data into adversarial example using fgsm
     if not sample_x.requires_grad:
         sample_x = sample_x.clone().detach().requires_grad_(True)
 
@@ -26,7 +26,7 @@ def adversarial_example(sample_x, sample_y, net, eps=1/255.):
     adversarial_x = torch.min(adversarial_x, torch.ones_like(adversarial_x)) # clip >1 values to 1
     return adversarial_x
 
-def loop_through_adv_examples(net, eps=0.035, show_same=False):
+def loop_through_adv_examples(net, eps=0.035, show_same=False): # show different adversarial attacks for samples from test data
     iloader = iter(net.test_loader)
     samples_x, samples_y = next(iloader)
     for index in range(len(samples_x)):
@@ -66,7 +66,7 @@ def loop_through_adv_examples(net, eps=0.035, show_same=False):
         plt.tight_layout()
         plt.show()
 
-def animate_adv_examples(net, eps_range=(0., 1.)):
+def animate_adv_examples(net, eps_range=(0., 1.)): # animate adv examples with increasing strength
     iloader = iter(net.test_loader)
     samples_x, samples_y = next(iloader)
     for index in range(len(samples_x)):
@@ -130,7 +130,7 @@ def animate_adv_examples(net, eps_range=(0., 1.)):
 
         plt.show()
 
-def lipschitz_superiority_examples(nomnet, lipnet, eps=0.035, show_same=False):
+def lipschitz_superiority_examples(nomnet, lipnet, eps=0.035, show_same=False): # find examples where nominal NN is fooled but LNN is not
     test_loader = lipnet.test_loader
     iloader = iter(lipnet.test_loader)
     samples_x, samples_y = next(iloader)
@@ -199,6 +199,7 @@ def lipschitz_superiority_examples(nomnet, lipnet, eps=0.035, show_same=False):
         plt.show()
 
 def accuracy_plot(nets, eps_list=[0., 1e-3, 1e-2, 3e-2, 7e-2, 1e-1, 2e-1, 3e-1, 7e-1, 1e0], labels=None, mode="fgsm"):
+    # plot accuracy over perturbation strength for different models
     test_loader = nets[0].test_loader
     iloader = iter(test_loader)
     samples_x, samples_y = next(iloader)
@@ -223,7 +224,7 @@ def accuracy_plot(nets, eps_list=[0., 1e-3, 1e-2, 3e-2, 7e-2, 1e-1, 2e-1, 3e-1, 
     
     plt.show()
 
-def accuracy(net, samples_x, samples_y, eps, mode="fgsm"):
+def accuracy(net, samples_x, samples_y, eps, mode="fgsm"): # calculate accuracy on test dataset for given net and pert. strength eps
     total = len(samples_x)
     correct = 0
     for index in range(len(samples_x)):
@@ -259,5 +260,3 @@ accuracy_plot([net0, net3, net4, net8, net12], labels=["nominal", "nominal + L2"
 # loop_through_adv_examples(net0, eps=0.035, show_same=True)
 # animate_adv_examples(net0, eps_range=(0.0, 0.5))
 # lipschitz_superiority_examples(net0, net4, eps=0.035)
-
-# adversarial attacks für ~10 samples von bayesian netzen!

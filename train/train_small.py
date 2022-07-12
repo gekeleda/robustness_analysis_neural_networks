@@ -13,6 +13,8 @@ import os, sys
 from train_sine import *
 from analysis.net_analysis import *
 
+# describes training on small regression dataset for several different methods and hyperparameter sets
+
 initnum = 1
 startind = 0
 parnums = [0, 3, 4, 8, 12]

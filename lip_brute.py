@@ -15,16 +15,16 @@ def lip_point(f, a, b):
 def lip_grid(f, a):
     n = len(a)
     coords = np.array([np.linspace(a[i]-dist, a[i]+dist, num=num) for i in range(n)])
-    mesh_coords = np.meshgrid(*coords)
+    mesh_coords = np.meshgrid(*coords) # create grid of input domain
     points = np.transpose(np.vstack(list(map(np.ravel, mesh_coords))))
-    lbs = [lip_point(f, a, b) for b in points] 
+    lbs = [lip_point(f, a, b) for b in points] # calculate slope for all points
     imax = max(range(len(lbs)), key=lbs.__getitem__)
-    return lbs[imax]
+    return lbs[imax] # return biggest slope
 
 def lip_grid_net(net):
-    # returns lower bound of lipschitz constant of net around zero
-    a = np.zeros((net.dims[0])) + 0.5 # 0.5 is middle of sine dataset
-    f = lambda x: net.forward(x, skip_last=False).detach().numpy()
+    # returns lower bound of lipschitz constant of net
+    a = np.zeros((net.dims[0])) + 0.5 # 0.5 is middle of dataset
+    f = lambda x: net.forward(x).detach().numpy()
     return lip_grid(f, a)
 
 if __name__ == "__main__":

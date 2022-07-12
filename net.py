@@ -16,6 +16,7 @@ eps = 1e-5
 startdiff = 1e-9 * 5.0e4
 epochfac = 1e-2
 
+# calculates log det of a positive definite matrix efficiently, with backward method for efficient autograd
 class PLogDet(Function):
     @staticmethod
     def forward(ctx, x, l=None):
@@ -36,19 +37,19 @@ plogdet = PLogDet.apply
 def onehot(y):
     return torch.zeros(10, dtype=torch.float).scatter_(0, torch.tensor(y), value=1)
 
-def label(y):
+def label(y): # inverse of onehot encoding: maps onehot to corresponding label
     if torch.is_tensor(y):
         return torch.argmax(y, dim=1)
     else:
         return np.argmax(y, axis=1)
 
 def spectral_norm(weights):
-    log_l = 0 # sum log of lipschitz constants instead of multiplying constants
+    log_l = 0 # sum log of lipschitz constants instead of multiplying constants for numerical reasons
     for weight in weights:
         log_l += np.log(np.linalg.norm(weight, ord=2))
     return np.exp(log_l)
 
-def isPD(Q):
+def isPD(Q): #quick pos. definite check
     l, info = torch.linalg.cholesky_ex(Q)
     return info <= 0
 
@@ -76,6 +77,7 @@ def softplusinv(x):
     x = torch.tensor(x)
     return torch.log(torch.exp(x)-1)
 
+# different convenience functions for parameter generation
 def weightParameter(shape, weight_scale):
     mean = torch.zeros(shape)
     std = torch.ones(shape)*weight_scale
@@ -119,7 +121,7 @@ class LRScheduler(torch.optim.lr_scheduler._LRScheduler):
                 pg["lr"] = lr
             self.model.lr = self.lr
 
-        def step(self, fac=0.7, cpstep=False):
+        def step(self, fac=0.7, cpstep=False): # lr step with possibility of also doing a central path step
             if self.lr >= meps and self.lr*fac < meps:
                 return self.lr
                 self.lr = self.lr*fac
@@ -188,10 +190,10 @@ class Net(pl.LightningModule):
         opt = self.optimizers()
         sch = self.lr_schedulers()
 
-        lsum = self.calc_batch_loss(train_batch)
+        lsum = self.calc_batch_loss(train_batch) # calculate loss
 
-        opt.zero_grad()
-        self.manual_backward(lsum)
+        opt.zero_grad() # remove previous gradients from optimizer storage
+        self.manual_backward(lsum) # calculate gradients
 
         model_state = copy.deepcopy(self.model.state_dict()) # save the model state
         opt_state = copy.deepcopy(opt.state_dict()) # save the opt state
@@ -211,9 +213,9 @@ class Net(pl.LightningModule):
                 l, info = torch.linalg.cholesky_ex(Q)
             if step_performed:
                 lsum = self.calc_batch_loss(train_batch)
-            self.Q, self.L = Q, l
+            self.Q, self.L = Q, l # Ensure update step is only taken when constraint is not violated
 
-
+        # If model has converged, perform cp step
         if (self.mode == "lipschitz" or self.mode == 'bayesian_lipschitz') and not self.lmod and not self.last_loss is None and abs(lsum - self.last_loss) < self.diff:
             self.cpstep()
             self.lmod = True
@@ -223,7 +225,7 @@ class Net(pl.LightningModule):
         self.last_loss = lsum.detach().item()
         return lsum
 
-    def calc_batch_loss(self, train_batch, test=False):
+    def calc_batch_loss(self, train_batch, test=False): # calculate loss for entire batch of samples (deprecated as is now also possible with calc_loss)
         lossf = self.lossf
         x, y = train_batch[0], train_batch[1]
 
@@ -236,7 +238,9 @@ class Net(pl.LightningModule):
         if self.regression:
             y = y.reshape(-1, 1)
 
-        # Compute prediction error
+        # Compute prediction error, add loss terms for the various methods
+        # For bayesian, average over sample_size weight samples
+
         if self.mode == 'bayesian' or self.mode == 'bayesian_lipschitz':
             lsum = 0
             asum = 0
@@ -290,6 +294,7 @@ class Net(pl.LightningModule):
             return loss, aloss
 
     def training_epoch_end(self, outputs):
+        # manage loss/accuracy histories after each epoch
         if len(self.epoch_losses) == 0:
             self.t0 = time.time()
         # avg_loss = torch.stack([x['loss'] for x in outputs]).mean().detach().item()
@@ -309,6 +314,7 @@ class Net(pl.LightningModule):
             self.test_accuracies.append(test_accuracy)
             self.log("test_accuracy", self.test_accuracies[-1], on_step=False, on_epoch=True, prog_bar=True, logger=False)
 
+        # epoch-wise convergence check for cp method
         if len(self.epoch_losses) > 1 and (self.mode == 'lipschitz' or self.mode == 'bayesian_lipschitz') and abs(self.epoch_losses[-1] - self.epoch_losses[-2]) < self.diff*epochfac:
             self.cpstep()
 
@@ -329,17 +335,17 @@ class Net(pl.LightningModule):
                     self.model.means[:self.model.n-1] = means
                 # print(" Switching to lipschitz mode with lip const. of: ", l)
 
-        if self.mode != "lipschitz" and self.mode != 'bayesian_lipschitz':
+        if self.mode != "lipschitz" and self.mode != 'bayesian_lipschitz': # decrease lr every epoch
             sch = self.lr_schedulers()
             sch.step(self.lr_fac)
 
-        if len(self.epoch_losses) % 25 == 0:
+        if len(self.epoch_losses) % 25 == 0: # save model all 25 epochs
             # torch.save(self, 'saved_nets/net_' + self.data_name + str(self.parnum) + '.pt')
             self.save()
         
         self.epoch_times.append(time.time()-self.t0)
 
-    def forward(self, x, skip_last=False):
+    def forward(self, x, skip_last=False): # model prediction
         if not torch.is_tensor(x):
             x = torch.tensor(x.astype(np.float32))
         if self.model.training:
@@ -382,16 +388,16 @@ class Net(pl.LightningModule):
     def getWeights(self, with_n):
         return self.model.getWeights(with_n=with_n)
     
-    def getWeightsOnly(self, as_tensors=True, sample=False):
+    def getWeightsOnly(self, as_tensors=True, sample=False): # weights without biases
         return self.model.getWeightsOnly(as_tensors=as_tensors, sample=sample)
     
-    def saveWeights(self):
+    def saveWeights(self): # save parameters to file
         if self.mode == 'bayesian' or self.mode == 'bayesian_lipschitz':
             self.setMeans()
         w = np.array(self.getWeightsOnly(as_tensors=False), dtype=object)
         np.save("weights.npy", w)
 
-    def save(self, path=None):
+    def save(self, path=None): # save entire model state to file, as dictionary
         if path is None:
             path = 'saved_nets/net_' + self.data_name + str(self.parnum) + '.pt'
         if self.trainer is not None:
@@ -410,7 +416,7 @@ class Net(pl.LightningModule):
 
         torch.save(state, path)
 
-    def load(self, path):
+    def load(self, path): # load model from dict
         state = torch.load(path)
         dims = state['dims']
         mode = state['mode']
@@ -461,7 +467,7 @@ class Net(pl.LightningModule):
             ldet = plogdet(self.Q, self.L)
         return -self.model.lfac * ldet
 
-    def calc_Q(self):
+    def calc_Q(self): # calculate LMI matrix
         return self.model.calc_Q()
 
     def cpstep(self):
@@ -479,7 +485,7 @@ class Net(pl.LightningModule):
         #     raise KeyboardInterrupt
         self.lmod = True
 
-    def lip_const(self, spectral=False, sample=False):
+    def lip_const(self, spectral=False, sample=False): # calculates lip. constant with LMI or spectral method, depending on spectral argument
         dims = self.dims
         if spectral:
             means = self.getWeightsOnly(as_tensors=False, sample=sample)
@@ -492,7 +498,7 @@ class Net(pl.LightningModule):
             l, lambdas = solveLipSDP([mean.detach().numpy() for mean in means])
             return l
 
-    def calc_loader_loss(self, loader):
+    def calc_loader_loss(self, loader): # calculate loss of entire dataset of a data loader
         iloader = enumerate(loader)
 
         lsum = 0
@@ -506,7 +512,7 @@ class Net(pl.LightningModule):
 
         return lsum/len(loader), asum/len(loader)
 
-    def accuracy_loader(self, loader):
+    def accuracy_loader(self, loader): # calculate accuracy over entire dataset of a data loader
         if self.regression:
             print("Accuracy cannot be calculated for regression task!")
             raise KeyboardInterrupt
@@ -526,7 +532,7 @@ class Net(pl.LightningModule):
 
         return correct/total
 
-    def correct_in_batch(self, x, y, pred=None):
+    def correct_in_batch(self, x, y, pred=None): # helper function for accuracy_loader
         correct = 0
         total = len(x)
         if pred == None:
@@ -563,6 +569,7 @@ class NetModel(nn.Module):
             self.l2 = l2
             self.lfac = lfac
 
+            # initialize lambdas randomly
             fac = 0.9
             lambda_mean = 10.0
             lambda_std = 0.1
@@ -571,7 +578,7 @@ class NetModel(nn.Module):
             # l = self.setSDPlambdas()
             self.lambdas = [baseParameter(lambda_mean, lambda_std, (dims[i+1])) for i in range(self.n-1)]
 
-            # self.initWeights()
+            # initialize weights randomly
             Q = self.calc_Q(replace_pars=False)
             while self.pretrain_epochs < 1 and not isPD(Q) and not self.loading:
                 self.weight_scale *= fac
@@ -593,9 +600,12 @@ class NetModel(nn.Module):
             #     raise KeyboardInterrupt
 
         else:
+            # initialize weights randomly
             self.means = [weightParameter((dims[i+1], dims[i]), self.weight_scale) for i in range(self.n)]
+        # initialize biases randomly
         self.means += [weightParameter((dims[i+1], 1), self.weight_scale) for i in range(self.n)]
 
+        # bayesian init with randomly generated rhos
         parlist = self.means
         if mode == 'bayesian' or mode == 'bayesian_lipschitz':
             self.kl_weight = kl_fac/batch_size
@@ -608,7 +618,7 @@ class NetModel(nn.Module):
         if mode == 'lipschitz' or mode == 'bayesian_lipschitz':
             parlist = parlist + self.lambdas
         self.parameterList = nn.ParameterList(parlist)
-
+    # initialize weights if bayesian
     def initWeights(self):
         if self.mode == 'bayesian' or self.mode == 'bayesian_lipschitz':
             self.weights = [sampleParameter(self.means[i], softplus(self.rhos[i]), self.means[i].size()) for i in range(self.n*2)]
@@ -620,7 +630,7 @@ class NetModel(nn.Module):
             self.weights = self.means
         else:
             print("This function makes sense for bayesian only!")
-
+    # see similar function in parent module
     def getWeights(self, with_n=False):
         self.initWeights()
         if with_n:
@@ -637,14 +647,14 @@ class NetModel(nn.Module):
             return [weight for weight in self.weights[:self.n]]
         else:
             return [weight.detach().numpy() for weight in self.weights[:self.n]]
-
+    # returns weights flattened to a vector
     def getWeightsVector(self):
         weights = self.getWeightsOnly(as_tensors=True)
         wvec = weights[0].flatten()
         for i in range(1, len(weights)):
             wvec = torch.hstack((wvec, weights[i].flatten()))
         return wvec
-
+    # model prediction
     def forward(self, x, skip_last=False):
         if len(x.shape) < 2:
             x = x.reshape(-1, 1)
@@ -661,7 +671,7 @@ class NetModel(nn.Module):
             return res
         else:
             return self.act_out((torch.mm(self.weights[self.n-1], res) + self.weights[-1]).transpose(0, -1))
-
+    # lambda initialization form SDP, not used in our experiments
     def setSDPlambdas(self, replace_pars=None):
         if replace_pars == None:
             replace_pars = self.replace_parameters
@@ -673,7 +683,7 @@ class NetModel(nn.Module):
         l, lambdas = solveLipSDP([mean.detach().numpy() for mean in means])
         self.lambdas = [torch.nn.Parameter(torch.tensor(lambdas[sum(dims[1:i]):sum(dims[1:i+1])])) for i in range(1, self.n)]
         return l
-
+    # calculate LMI matrix Q from weights
     def calc_Q(self, replace_pars=None):
         if replace_pars == None:
             replace_pars = self.replace_parameters
@@ -703,6 +713,7 @@ class NetModel(nn.Module):
 
         return Q
 
+    # for saving net
     def getState(self):
         state = {
             'state_dict': self.state_dict()
@@ -712,7 +723,8 @@ class NetModel(nn.Module):
             state[attribute] = value
 
         return state
-
+        
+    # for loading net
     def restoreState(self, state):
         dims = state['dims']
         # self = NetModel(dims)

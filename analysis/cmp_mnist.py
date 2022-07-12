@@ -10,6 +10,8 @@ from os import walk
 import re
 import matplotlib.lines as mlines
 
+# Evaluates different MNIST nets and shows comparison graph
+
 colors = ['red', 'blue', 'green']
 
 numbers = re.compile(r'(\d+)')

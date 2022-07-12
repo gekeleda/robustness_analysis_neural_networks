@@ -11,6 +11,9 @@ import re
 from cmp_sine import sine_paths, numericalSort
 from scipy.stats import gaussian_kde
 from tqdm import tqdm
+
+# evaluates nets from small regression task in given directories
+
 dirpaths = ['d:/BA_nets/ana_saved/small/' + mode for mode in ['nominal', 'nominal_L2', 'lipschitz', 'bayesian', 'bayesian_lipschitz']]
 # dirpaths = ['ana_saved/small/' + mode for mode in ['nominal', 'nominal_L2', 'lipschitz', 'bayesian', 'bayesian_lipschitz']]
 anapaths = [sine_paths(path) for path in dirpaths] 

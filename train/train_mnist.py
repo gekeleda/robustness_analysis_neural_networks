@@ -3,6 +3,7 @@
 
 # In[7]:
 
+# describes training on MNIST dataset for several different methods and hyperparameter sets
 
 import numpy as np
 import torch

@@ -7,6 +7,8 @@ from matplotlib import pyplot as plt
 from net import *
 from lip_brute import lip_grid_net
 
+# defines analysis procedure for nets, plus how to plot the finished analysis
+
 n_bay = 10
 
 def moving_average(data):
@@ -131,7 +133,7 @@ def analyzeNet(net, plot_samples=15, kde_samples=100):
 
         description = describe(lip_consts, bias=False)
 
-        kernel = gaussian_kde(lip_consts)
+        kernel = gaussian_kde(lip_consts) # estimate distribution of lip_consts with gaussian kernel density estimation
         spacing = 0.1
         lip_x = np.linspace(min(lip_consts)-spacing, max(lip_consts)+spacing, num=400)
         lip_kde = kernel(lip_x)

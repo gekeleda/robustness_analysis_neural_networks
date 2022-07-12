@@ -12,7 +12,7 @@ def to_cvx(a):
     # converts numpy array to picos constant
     return cp.Constant(a.astype(np.double))
 
-def blkdiag_old(a, au=None, al=None):
+def blkdiag_old(a, au=None, al=None): # deprecated
     n = len(a)
     for i in range(n):
         if sum(a[i].shape) < 1:
@@ -87,7 +87,8 @@ def solveLipSDP(weights, return_Q=False):
     n = len(dims) - 1
     L2 = cp.Variable(nonneg=True)
     sdims = sum(dims)
-    feasible = sdims < inf
+    maxdimsum = inf # adjust if approximation needed for big nets
+    feasible = sdims < maxdimsum
     if feasible:
         lamdim = sum(dims[1:])
         lambdas = cp.Variable((lamdim,1), nonneg=True)
@@ -126,12 +127,11 @@ def solveLipSDP(weights, return_Q=False):
     al = [-ldiags[i] @ to_cvx(weights[i]) for i in range(n-1)] + [-to_cvx(weights[n-1])] # lower diagonal
 
     Q = blkdiag(a, au=au, al=al)
-
-    # Q is finally calculated
-    # print("Q has shape: ", Q.shape)
+    # Q is calculated
 
     eps = 1e-6
 
+    # define problem
     obj = cp.Minimize(L2)
     constraints = [Q >> eps*1]
 

@@ -2,6 +2,8 @@ from matplotlib import pyplot as plt
 from matplotlib import animation
 import numpy as np
 
+# convenience script for plotting saved adversarial data
+
 nets_accuracies, eps_list, labels = np.load("adversarial/adv_plot_data.npy", allow_pickle=True)
 for i in range(len(nets_accuracies)):
     if labels is None:

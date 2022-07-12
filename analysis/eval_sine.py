@@ -11,6 +11,9 @@ from lip_brute import lip_grid_net
 import sys
 from net_analysis import *
 # In[]
+
+# evaluates a single regression neural net
+
 parnum = 0
 net = loadNet('saved_nets/norm/saved_nets1/net_sine0.pt')
 # # net = loadNet('saved_nets/net_sine' + str(parnum) + '.pt')

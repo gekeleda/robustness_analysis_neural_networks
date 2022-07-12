@@ -3,6 +3,8 @@ import sys
 import os
 from tqdm import tqdm
 
+# script for consecutively training all the methods with different hyperparameter sets detailed in train_mnist and train_sine
+
 mnist = False
 sine = True
 

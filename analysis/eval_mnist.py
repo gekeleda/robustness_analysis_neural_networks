@@ -9,6 +9,8 @@ from net import *
 import sys
 from net_analysis import *
 
+# evaluates a single MNIST neural net
+
 def moving_average(data):
     window_width = 20
     cumsum_vec = np.cumsum(np.insert(data, 0, [0]*window_width))

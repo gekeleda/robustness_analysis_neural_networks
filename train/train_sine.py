@@ -3,6 +3,7 @@
 
 # In[7]:
 
+# describes training on regression dataset for several different methods and hyperparameter sets
 
 import numpy as np
 from numpy.random import normal
